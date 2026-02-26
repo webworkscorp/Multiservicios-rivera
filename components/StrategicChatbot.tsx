@@ -73,7 +73,9 @@ const StrategicChatbot: React.FC = () => {
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
       
       if (!apiKey) {
-        throw new Error("Configuración incompleta");
+        console.error("❌ ERROR CRÍTICO: No se encontró la API Key de Gemini.");
+        console.error("SOLUCIÓN: Vaya a Settings > Environment Variables en Vercel y agregue 'GEMINI_API_KEY'.");
+        throw new Error("Configuración incompleta: Falta la API Key.");
       }
       
       const ai = new GoogleGenAI({ apiKey });
