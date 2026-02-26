@@ -1,0 +1,87 @@
+
+<!DOCTYPE html>
+<html lang="es" class="smooth-scroll">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiservicios Rivera | Gestión Técnica de Infraestructura</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#1C1C1C', // Charcoal Gray from Logo
+                            slate: '#4A4A4A', // Secondary Gray from Logo
+                            crimson: '#E31E24', // Vibrant Red from Logo
+                            concrete: '#F4F4F4',
+                            accent: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Inter"', 'sans-serif'],
+                        heading: ['"Manrope"', 'sans-serif'],
+                    },
+                    animation: {
+                        'marquee': 'marquee 4s linear infinite',
+                    },
+                    keyframes: {
+                        marquee: {
+                            '0%': { transform: 'translateX(0%)' },
+                            '100%': { transform: 'translateX(-50%)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Global Styles & Resets */
+        html {
+          scroll-behavior: smooth;
+        }
+        a.button, .btn, button {
+          all: unset;
+          cursor: pointer;
+        }
+
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4 { font-family: 'Manrope', sans-serif; }
+        .grid-bg {
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        .bento-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .bento-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        .marquee-container {
+            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+        }
+    </style>
+    <script>
+    document.addEventListener("click", function (e) {
+      const el = e.target.closest("a[href^='#']");
+      if (!el) return;
+
+      e.preventDefault();
+      const target = document.querySelector(el.getAttribute("href"));
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+    </script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-white text-brand-dark antialiased selection:bg-brand-crimson selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
