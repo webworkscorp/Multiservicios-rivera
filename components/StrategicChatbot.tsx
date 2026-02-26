@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Send } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -32,7 +31,7 @@ const StrategicChatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showProactive, setShowProactive] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hola. ¿En qué puedo ayudarte hoy con tu duda o proyecto?' }
+    { role: 'assistant', content: 'Hola. Soy el asistente virtual de Multiservicios Rivera. ¿En qué puedo ayudarte hoy con tu duda o proyecto?' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -60,6 +59,40 @@ const StrategicChatbot: React.FC = () => {
     return () => clearInterval(interval);
   }, [isOpen]);
 
+  const generateLocalResponse = (input: string): string => {
+    const lowerInput = input.toLowerCase();
+
+    if (lowerInput.includes('servicios') || lowerInput.includes('hacen') || lowerInput.includes('ofrecen') || lowerInput.includes('trabajos')) {
+      return "Ofrecemos: Sistemas de Potencia (Eléctrica), Señales (Voz y Datos), Fontanería, Sistemas Mecánicos, Soldaduras, Acabados de Lujo e Infraestructura.";
+    }
+    
+    if (lowerInput.includes('ubicación') || lowerInput.includes('donde') || lowerInput.includes('país') || lowerInput.includes('pais')) {
+      return "Estamos ubicados en Costa Rica y atendemos proyectos en todo el país.";
+    }
+
+    if (lowerInput.includes('experiencia') || lowerInput.includes('años') || lowerInput.includes('tiempo')) {
+      return "Contamos con más de 20 años de experiencia y hemos entregado con éxito más de 150 proyectos.";
+    }
+
+    if (lowerInput.includes('contacto') || lowerInput.includes('teléfono') || lowerInput.includes('telefono') || lowerInput.includes('email') || lowerInput.includes('correo') || lowerInput.includes('whatsapp')) {
+      return "Puedes contactarnos al 8708-8047 o al correo les82rivera@hotmail.com. También puedes usar el botón de WhatsApp en esta página.";
+    }
+
+    if (lowerInput.includes('precio') || lowerInput.includes('cotización') || lowerInput.includes('costo') || lowerInput.includes('presupuesto')) {
+      return "Cada proyecto es único. Para darte un precio exacto, necesitamos evaluar tus requerimientos. Por favor, contáctanos para una cotización personalizada.";
+    }
+
+    if (lowerInput.includes('hola') || lowerInput.includes('buenos dias') || lowerInput.includes('buenas tardes')) {
+      return "¡Hola! ¿En qué puedo ayudarte hoy con respecto a nuestros servicios de ingeniería y mantenimiento?";
+    }
+
+    if (lowerInput.includes('gracias')) {
+      return "¡Con gusto! Estamos para servirte.";
+    }
+
+    return "Entiendo. Para consultas específicas o detalles técnicos complejos, te recomiendo contactarnos directamente para brindarte la mejor asesoría.";
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -69,74 +102,9 @@ const StrategicChatbot: React.FC = () => {
     setIsLoading(true);
     setShowProactive(false);
 
-    try {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-      
-      if (!apiKey) {
-        console.error("❌ ERROR CRÍTICO: No se encontró la API Key de Gemini.");
-        console.error("SOLUCIÓN: Vaya a Settings > Environment Variables en Vercel y agregue 'GEMINI_API_KEY'.");
-        throw new Error("Configuración incompleta: Falta la API Key.");
-      }
-      
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const systemInstruction = `
-        Eres un experto técnico de "Multiservicios Rivera" (Rivera Engineering Group), una empresa líder en Costa Rica con más de 20 años de trayectoria y más de 150 proyectos entregados con éxito.
-        
-        Tu misión es entender las necesidades del usuario y resolver sus dudas técnicas con precisión, basándote ÚNICAMENTE en la información real de la empresa.
-        
-        INFORMACIÓN CLAVE DE LA EMPRESA (NO INVENTES DATOS):
-        - Nombre: Multiservicios Rivera / Rivera Engineering Group.
-        - Ubicación: Costa Rica (Código de país +506).
-        - Experiencia: Más de 20 años.
-        - Proyectos: Más de 150 obras entregadas.
-        - Filosofía: "No vendemos trabajo, vendemos certeza". "Su obra, sin errores". Nos enfocamos en calidad técnica, orden y cumplimiento.
-        - Contacto: Teléfono 8708-8047 / Email: les82rivera@hotmail.com
-        
-        SERVICIOS QUE OFRECEMOS (SOLO ESTOS):
-        1. Sistemas de Potencia (Eléctrica): Tensión y transmisión eléctrica.
-        2. Sistemas de Señales (Voz y Datos): Transmisión de voz/datos, alarmas, seguridad.
-        3. Fontanería (Hidráulica): Agua potable, aguas pluviales, aguas negras, sistemas de bombeo.
-        4. Sistemas Mecánicos Industriales: Redes de gases médicos e industriales.
-        5. Soldaduras y Estructuras Metálicas.
-        6. Acabados y Detalles de Lujo (Remodelación corporativa y residencial).
-        7. Infraestructura: Redes de ventilación, cableado estructurado.
-        
-        PERSONALIDAD Y REGLAS:
-        - Tono: Profesional, experto, directo, amable y "humano". Habla siempre en "nosotros".
-        - EXTREMADAMENTE CONCISO: Tus respuestas deben ser cortas (máximo 2-3 oraciones). Ve al grano.
-        - CERO ROBÓTICO: Evita frases como "Como modelo de lenguaje", "En base a mi información", "Es un placer ayudarte". Sé natural: "Claro, podemos revisar eso", "Entendido, lo hacemos así".
-        - NO uses palabras como "senior", "asesoría" o "consultoría" de forma genérica. Usa "Asesoría Técnica Rivera" si es necesario.
-        - NO inventes servicios que no están en la lista (ej. no hacemos jardinería ni limpieza doméstica simple).
-        - Si te preguntan de dónde somos, di Costa Rica.
-        - Si te preguntan cuántos años tenemos, di más de 20 años.
-        - Responde las dudas técnicas de forma clara y útil.
-        - NO sugieras ir al formulario de contacto en cada respuesta. Solo hazlo si el usuario pregunta cómo contratar o si la solución requiere una inspección física obligatoria.
-        - Mantén la conversación fluida y centrada en ayudar.
-      `;
-
-      const chat = ai.chats.create({
-        model: "gemini-3-flash-preview",
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.5,
-        },
-        history: [
-          { role: 'user', parts: [{ text: 'Hola, tengo una duda.' }] },
-          ...messages.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.content }]
-          }))
-        ]
-      });
-
-      const result = await chat.sendMessage({ message: userMessage });
-      
-      if (!result || !result.text) {
-        throw new Error("Respuesta vacía");
-      }
-
-      const response = result.text;
+    // Simulate network delay for natural feel
+    setTimeout(() => {
+      const response = generateLocalResponse(userMessage);
       const newInteractionCount = interactionCount + 1;
       setInteractionCount(newInteractionCount);
       
@@ -148,13 +116,8 @@ const StrategicChatbot: React.FC = () => {
         isTyping: true,
         showContactButton: showButton
       }]);
-    } catch (error: any) {
-      console.error("Error en el Chatbot:", error);
-      const errorMessage = "Lo siento, he tenido un problema técnico. Por favor, intente de nuevo o contacte directamente por WhatsApp.";
-      setMessages(prev => [...prev, { role: 'assistant', content: errorMessage, isTyping: true }]);
-    } finally {
       setIsLoading(false);
-    }
+    }, 600);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
