@@ -110,7 +110,16 @@ const StrategicChatbot: React.FC = () => {
 
   const generateAIResponse = async (userMessage: string, history: Message[], currentData: typeof userData) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      // Intentar obtener la API Key de las variables de entorno de Vite (Vercel) o Node (Local)
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        console.error("ERROR CRÍTICO: No se encontró la API Key de Gemini.");
+        console.error("En Vercel, asegúrate de agregar la variable de entorno: VITE_GEMINI_API_KEY");
+        throw new Error("API Key no configurada");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const systemInstruction = `
         Actúa como un asesor humano real de "Multiservicios Rivera" (Costa Rica).
