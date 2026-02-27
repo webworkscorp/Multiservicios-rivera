@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Send } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -31,11 +32,20 @@ const StrategicChatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showProactive, setShowProactive] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hola. Soy el asistente virtual de Multiservicios Rivera. ¿En qué puedo ayudarte hoy con tu duda o proyecto?' }
+    { role: 'assistant', content: 'Hola. Soy el asistente virtual de Multiservicios Rivera. ¿En qué puedo ayudarte hoy?' }
   ]);
+  // Estado para rastrear datos del usuario (Memoria Contextual)
+  const [userData, setUserData] = useState({
+    location: '',
+    service: '',
+    urgency: false,
+    projectType: '', // residential | commercial
+    detailsGiven: false
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [interactionCount, setInteractionCount] = useState(0);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -59,65 +69,153 @@ const StrategicChatbot: React.FC = () => {
     return () => clearInterval(interval);
   }, [isOpen]);
 
-  const generateLocalResponse = (input: string): string => {
-    const lowerInput = input.toLowerCase();
+  // Función auxiliar para actualizar memoria local (Regex) - Se mantiene para tracking interno
+  const updateUserData = (input: string, currentData: typeof userData) => {
+    const lowerInput = input.toLowerCase().trim();
+    let newData = { ...currentData };
 
-    if (lowerInput.includes('servicios') || lowerInput.includes('hacen') || lowerInput.includes('ofrecen') || lowerInput.includes('trabajos')) {
-      return "Ofrecemos: Sistemas de Potencia (Eléctrica), Señales (Voz y Datos), Fontanería, Sistemas Mecánicos, Soldaduras, Acabados de Lujo e Infraestructura.";
+    // Urgencia
+    if (lowerInput.match(/(urgente|ya|rápido|ahora|emergencia|fuga|corto|quemó|explotó|inundación|auxilio)/)) {
+      newData.urgency = true;
+    } else if (lowerInput.match(/(planeando|cotizar|futuro|pensando|presupuesto|idea|gustaría|veremos|calma|tranquilo)/)) {
+      newData.urgency = false;
+    }
+
+    // Ubicación
+    if (lowerInput.match(/(gam|san josé|alajuela|heredia|cartago|escazú|santa ana|rural|guanacaste|puntarenas|limón)/)) {
+      newData.location = "identificada";
+    }
+
+    // Tipo de Proyecto
+    if (lowerInput.match(/(casa|hogar|residencia|apartamento|condominio|habitacion|cuarto|sala|cocina|baño)/)) {
+      newData.projectType = 'residential';
+    } else if (lowerInput.match(/(local|comercio|oficina|negocio|empresa|industria|bodega|edificio|tienda)/)) {
+      newData.projectType = 'commercial';
+    }
+
+    // Servicio
+    if (lowerInput.match(/(electric|luz|breaker|tomacorriente|cableado|lampara|enchufe)/)) newData.service = 'electricidad';
+    else if (lowerInput.match(/(fontaner|agua|tubo|cañería|fuga|bomba|grifo|lavabo|ducha)/)) newData.service = 'fontanería';
+    else if (lowerInput.match(/(remodel|piso|pared|pintura|gypsum|cielo|ceramica|azulejo|ampliacion)/)) newData.service = 'remodelación';
+    else if (lowerInput.match(/(solda|estructura|techo|verja|portón|metal|hierro|acero)/)) newData.service = 'estructuras';
+    else if (lowerInput.match(/(red|datos|cámara|internet|voz|wifi|cableado)/)) newData.service = 'redes';
+
+    // Detalles
+    if (lowerInput.length > 15 && !newData.detailsGiven) {
+      newData.detailsGiven = true;
     }
     
-    if (lowerInput.includes('ubicación') || lowerInput.includes('donde') || lowerInput.includes('país') || lowerInput.includes('pais')) {
-      return "Estamos ubicados en Costa Rica y atendemos proyectos en todo el país.";
-    }
+    return newData;
+  };
 
-    if (lowerInput.includes('experiencia') || lowerInput.includes('años') || lowerInput.includes('tiempo')) {
-      return "Contamos con más de 20 años de experiencia y hemos entregado con éxito más de 150 proyectos.";
-    }
+  const generateAIResponse = async (userMessage: string, history: Message[], currentData: typeof userData) => {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const systemInstruction = `
+        Actúa como un asesor humano real de "Multiservicios Rivera" (Costa Rica).
+        Tu objetivo es ENTENDER lo que el cliente quiere y guiarlo a una visita técnica o cotización.
 
-    if (lowerInput.includes('contacto') || lowerInput.includes('teléfono') || lowerInput.includes('telefono') || lowerInput.includes('email') || lowerInput.includes('correo') || lowerInput.includes('whatsapp')) {
-      return "Puedes contactarnos al 8708-8047 o al correo les82rivera@hotmail.com. También puedes usar el botón de WhatsApp en esta página.";
-    }
+        DATOS QUE NECESITAS RECOLECTAR (No preguntes todo de golpe, ve natural):
+        1. Servicio (Electricidad, Fontanería, Remodelación, Estructuras, Redes).
+        2. Tipo de Proyecto (Residencial o Comercial).
+        3. Ubicación (GAM o fuera).
+        4. Detalles del problema.
 
-    if (lowerInput.includes('precio') || lowerInput.includes('cotización') || lowerInput.includes('costo') || lowerInput.includes('presupuesto')) {
-      return "Cada proyecto es único. Para darte un precio exacto, necesitamos evaluar tus requerimientos. Por favor, contáctanos para una cotización personalizada.";
-    }
+        CONTEXTO ACTUAL DETECTADO (Úsalo para no repetir preguntas):
+        - Servicio: ${currentData.service || 'No detectado aún'}
+        - Tipo: ${currentData.projectType || 'No detectado aún'}
+        - Ubicación: ${currentData.location || 'No detectada aún'}
+        - Urgencia: ${currentData.urgency ? 'SÍ' : 'No/Por definir'}
 
-    if (lowerInput.includes('hola') || lowerInput.includes('buenos dias') || lowerInput.includes('buenas tardes')) {
-      return "¡Hola! ¿En qué puedo ayudarte hoy con respecto a nuestros servicios de ingeniería y mantenimiento?";
-    }
+        REGLAS DE COMPORTAMIENTO:
+        - Habla con un tono natural, profesional y cercano.
+        - Evita modismos excesivos, pero sé amable y directo.
+        - NADA de lenguaje robótico o corporativo (prohibido: "ingeniería", "levantamiento", "transformación").
+        - Respuestas CORTAS y DIRECTAS (máximo 2-3 frases).
+        - Si el cliente da info parcial, asume o pregunta suavemente lo que falta.
+        - Si es URGENTE -> Cierra de inmediato.
+        - Si NO es urgente -> Enfócate en calidad y planificación.
+        - NUNCA repitas una pregunta que ya se contestó.
+        - MÁXIMO 1 pregunta por turno.
 
-    if (lowerInput.includes('gracias')) {
-      return "¡Con gusto! Estamos para servirte.";
-    }
+        CIERRE:
+        - Cuando tengas clara la necesidad (Servicio + Lugar + Detalle), propón la visita/revisión.
+        - Si el cliente pregunta precio, di que se necesita ver en sitio para no batear y ofrece visita.
+        - Cuando propongas la visita o el contacto, añade al final de tu respuesta la etiqueta: [BUTTON]
+        - Si el usuario ya aceptó o pidió contacto, responde confirmando y añade: [BUTTON]
+      `;
 
-    return "Entiendo. Para consultas específicas o detalles técnicos complejos, te recomiendo contactarnos directamente para brindarte la mejor asesoría.";
+      // Construct the full conversation history for the API
+      const contents = history.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
+
+      // Add the current user message
+      contents.push({
+        role: 'user',
+        parts: [{ text: userMessage }]
+      });
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        config: {
+          systemInstruction: systemInstruction,
+        },
+        contents: contents
+      });
+
+      let finalText = result.text || "";
+      let triggerButton = false;
+
+      if (finalText.includes('[BUTTON]')) {
+        triggerButton = true;
+        finalText = finalText.replace('[BUTTON]', '').trim();
+      }
+
+      return { text: finalText, triggerButton };
+
+    } catch (error) {
+      console.error("Error calling Gemini API:", error);
+      // Fallback local logic if API fails
+      return { 
+        text: "Disculpa, tuve un pequeño problema de conexión. ¿Me decías?", 
+        triggerButton: false 
+      };
+    }
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || interactionCount >= 7) return;
 
     const userMessage = input;
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    const newMessages = [...messages, { role: 'user' as const, content: userMessage }];
+    setMessages(newMessages);
     setIsLoading(true);
     setShowProactive(false);
 
-    // Simulate network delay for natural feel
-    setTimeout(() => {
-      const response = generateLocalResponse(userMessage);
-      const newInteractionCount = interactionCount + 1;
-      setInteractionCount(newInteractionCount);
-      
-      const showButton = newInteractionCount >= 5;
+    // 1. Actualizar memoria local (Regex) para mantener el estado
+    const newData = updateUserData(userMessage, userData);
+    setUserData(newData);
 
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: response, 
-        isTyping: true,
-        showContactButton: showButton
-      }]);
-      setIsLoading(false);
-    }, 600);
+    // 2. Llamar a la API
+    const { text: responseText, triggerButton } = await generateAIResponse(userMessage, messages, newData);
+
+    const newInteractionCount = interactionCount + 1;
+    setInteractionCount(newInteractionCount);
+    
+    // Fallback: Si llevamos muchas interacciones, mostrar botón
+    const showButton = triggerButton || newInteractionCount >= 7;
+
+    setMessages(prev => [...prev, { 
+      role: 'assistant', 
+      content: responseText, 
+      isTyping: true,
+      showContactButton: showButton
+    }]);
+    setIsLoading(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -171,8 +269,8 @@ const StrategicChatbot: React.FC = () => {
               <div>
                 <h3 className="text-white font-heading font-bold text-sm tracking-wide">ASISTENTE RIVERA</h3>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-white/60 text-[10px] uppercase tracking-wider">en línea</span>
+                  <span className={`w-2 h-2 rounded-full ${interactionCount >= 7 ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`}></span>
+                  <span className="text-white/60 text-[10px] uppercase tracking-wider">{interactionCount >= 7 ? 'finalizado' : 'en línea'}</span>
                 </div>
               </div>
             </div>
@@ -253,13 +351,13 @@ const StrategicChatbot: React.FC = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder="Escriba su consulta..."
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:outline-none focus:border-brand-crimson focus:ring-1 focus:ring-brand-crimson transition-all placeholder:text-gray-400 text-brand-dark"
-                disabled={isLoading}
+                placeholder={interactionCount >= 7 ? "Chat finalizado. Por favor use el botón de contacto." : "Escriba su consulta..."}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:outline-none focus:border-brand-crimson focus:ring-1 focus:ring-brand-crimson transition-all placeholder:text-gray-400 text-brand-dark disabled:opacity-60 disabled:bg-gray-100"
+                disabled={isLoading || interactionCount >= 7}
               />
               <button
                 onClick={handleSend}
-                disabled={isLoading || !input.trim()}
+                disabled={isLoading || !input.trim() || interactionCount >= 7}
                 className="absolute right-2 p-2 bg-brand-dark text-white rounded-lg hover:bg-brand-crimson disabled:opacity-50 disabled:hover:bg-brand-dark transition-colors shadow-md"
               >
                 <Send size={18} />
